@@ -42,20 +42,13 @@ func (h *Header) decodeEthHeader() (*types.Header, error) {
 	return &ethHeader, nil
 }
 
+// decodeAccountProof reverte o encoding usado por
+// ethereum-ibc-relay-chain/pkg/client/proof.go (encodeRLP) pros bytes RLP
+// originais de cada nó da trie. Reaproveita decodeMPTProofNodes
+// (qbft_proof.go, adicionado no patch local T13 pra uso da metade on-chain)
+// em vez de duplicar a lógica aqui.
 func (h *Header) decodeAccountProof() ([][]byte, error) {
-	var decodedProof [][][]byte
-	if err := rlp.DecodeBytes(h.AccountStateProof, &decodedProof); err != nil {
-		return nil, err
-	}
-	var accountProof [][]byte
-	for i := range decodedProof {
-		b, err := rlp.EncodeToBytes(decodedProof[i])
-		if err != nil {
-			return nil, err
-		}
-		accountProof = append(accountProof, b)
-	}
-	return accountProof, nil
+	return decodeMPTProofNodes(h.AccountStateProof)
 }
 
 func ethHeightToPB(height uint64) clienttypes.Height {
