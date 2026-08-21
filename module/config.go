@@ -6,6 +6,8 @@ import (
 
 	"github.com/datachainlab/ethereum-ibc-relay-chain/pkg/relay/ethereum"
 	"github.com/hyperledger-labs/yui-relayer/core"
+	"github.com/hyperledger-labs/yui-relayer/coreutil"
+	"github.com/hyperledger-labs/yui-relayer/otelcore"
 )
 
 const (
@@ -15,12 +17,27 @@ const (
 
 var _ core.ProverConfig = (*ProverConfig)(nil)
 
+// Build implementa core.ProverConfig.Build.
+//
+// NOTA (patch local, T15, ver YUI_Relayer/.claude/nextsteps.md): a v0.2.8
+// original fazia um type assertion direto (`chain.(*ethereum.Chain)`), que
+// quebra de verdade quando o Prover é construído pelo fluxo padrão do CLI
+// do yui-relayer (`chains add-dir`) - `ChainConfig.Build()` (tanto o de
+// `ethereum-ibc-relay-chain` quanto o de `chains/tendermint`) sempre
+// envolve a chain concreta num `otelcore.Chain` (tracing), então o que
+// chega aqui nunca é um `*ethereum.Chain` puro. Confirmado rodando de
+// verdade contra uma besu_chain_0/cosmos_chain_0 reais via `yrly chains
+// add-dir`: erro real "chain type must be *ethereum.Chain, not
+// *otelcore.Chain". O próprio `chains/tendermint/config.go` (que já
+// funciona) resolve isso com `coreutil.UnwrapChain[*Chain](chain)` - é
+// exatamente esse helper, já existente no `yui-relayer`, que faltava usar
+// aqui em vez de reinventar a lógica de desembrulhar a chain.
 func (c ProverConfig) Build(chain core.Chain) (core.Prover, error) {
-	chain_, ok := chain.(*ethereum.Chain)
-	if !ok {
-		return nil, fmt.Errorf("chain type must be %T, not %T", &ethereum.Chain{}, chain)
+	chain_, err := coreutil.UnwrapChain[*ethereum.Chain](chain)
+	if err != nil {
+		return nil, fmt.Errorf("chain type must be %T: %w", &ethereum.Chain{}, err)
 	}
-	return NewProver(chain_, c), nil
+	return otelcore.NewProver(NewProver(chain_, c), chain.ChainID(), tracer), nil
 }
 
 func (c ProverConfig) Validate() error {
