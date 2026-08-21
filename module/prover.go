@@ -95,7 +95,16 @@ func (pr *Prover) GetLatestFinalizedHeader(ctx context.Context) (latestFinalized
 }
 
 // SetupHeadersForUpdate implements Prover.SetupHeadersForUpdate
-func (pr *Prover) SetupHeadersForUpdate(ctx context.Context, counterparty core.FinalityAwareChain, latestFinalizedHeader core.Header) ([]core.Header, error) {
+//
+// NOTA (patch local, ver YUI_Relayer/.claude/nextsteps.md T12): a v0.2.8
+// (última tag) foi escrita contra yui-relayer v0.5.11, cuja interface
+// core.Prover.SetupHeadersForUpdate retornava ([]core.Header, error). O
+// yui-relayer v0.5.20 (vendorizado neste projeto) mudou a assinatura pra
+// (<-chan *core.HeaderOrError, error) — quebra de API real, confirmada
+// tentando compilar contra os dois. Adaptado aqui pra usar o helper
+// core.MakeHeaderStream (já existe no próprio yui-relayer, feito pra
+// isso) em vez de reescrever a lógica de verificação.
+func (pr *Prover) SetupHeadersForUpdate(ctx context.Context, counterparty core.FinalityAwareChain, latestFinalizedHeader core.Header) (<-chan *core.HeaderOrError, error) {
 	header, ok := latestFinalizedHeader.(*Header)
 	if !ok {
 		return nil, fmt.Errorf("invalid header type: %T", latestFinalizedHeader)
@@ -116,7 +125,7 @@ func (pr *Prover) SetupHeadersForUpdate(ctx context.Context, counterparty core.F
 		return nil, err
 	}
 	header.TrustedHeight = cs.GetLatestHeight().(clienttypes.Height)
-	return []core.Header{header}, nil
+	return core.MakeHeaderStream(header), nil
 }
 
 // ProveState implements Prover.ProveState
