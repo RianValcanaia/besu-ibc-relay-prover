@@ -18,6 +18,15 @@ func (Module) Name() string {
 }
 
 // RegisterInterfaces register the module interfaces to protobuf Any.
+//
+// NOTA (patch local, T16, ver YUI_Relayer/.claude/nextsteps.md): faltava
+// registrar Header como exported.ClientMessage - a v0.2.8 original só
+// registrava ClientState/ConsensusState, o que bastava pra CreateClient
+// (client hb-qbft criado com sucesso), mas quebra de verdade assim que o
+// relayer tenta um MsgUpdateClient (ex.: dentro do handshake de connection,
+// que atualiza o client antes de ConnOpenInit) - o nó cosmos rejeita a tx
+// com "unable to resolve type URL /ibc.lightclients.qbft.v1.Header",
+// confirmado rodando um handshake real contra besu_chain_0/cosmos_chain_0.
 func (Module) RegisterInterfaces(registry codectypes.InterfaceRegistry) {
 	registry.RegisterImplementations(
 		(*core.ProverConfig)(nil),
@@ -30,6 +39,10 @@ func (Module) RegisterInterfaces(registry codectypes.InterfaceRegistry) {
 	registry.RegisterImplementations(
 		(*exported.ConsensusState)(nil),
 		&ConsensusState{},
+	)
+	registry.RegisterImplementations(
+		(*exported.ClientMessage)(nil),
+		&Header{},
 	)
 }
 
