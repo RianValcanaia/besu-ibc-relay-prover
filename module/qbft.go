@@ -26,6 +26,7 @@ import (
 	sdk "github.com/cosmos/cosmos-sdk/types"
 	commitmenttypes "github.com/cosmos/ibc-go/v8/modules/core/23-commitment/types"
 	"github.com/cosmos/ibc-go/v8/modules/core/exported"
+	"github.com/ethereum/go-ethereum/crypto"
 )
 
 const QBFT_CLIENT_TYPE = "hb-qbft"
@@ -126,11 +127,24 @@ func (cs *ClientState) VerifyMembership(ctx sdk.Context, clientStore storetypes.
 	if !found_ {
 		return fmt.Errorf("membership proof failed: key not found in storage trie")
 	}
+	// Achado real (T22): todo commitment do IBCHandler.sol (client state,
+	// consensus state, connection, channel, packet - ver
+	// IBCClient.sol/IBCConnection.sol/IBCChannel*.sol, sempre
+	// `commitments[key] = keccak256(value)`) guarda o HASH do valor, nunca
+	// o valor cru - `value` aqui é o ConnectionEnd/ChannelEnd/etc completo
+	// (várias dezenas de bytes), não os 32 bytes que a trie realmente
+	// armazena. Comparar `value` cru (mesmo com pad32) contra o que a trie
+	// devolve sempre falhava pra qualquer commitment que não já fosse um
+	// hash de 32 bytes (ex.: ConnOpenAck rejeitando a prova de
+	// ConnectionEnd de um `TendermintClient.sol` real, T20/T21) - pego
+	// rodando o handshake de verdade pela primeira vez com verificação
+	// real nas duas pontas.
+	wantHash := crypto.Keccak256(value)
 	gotPadded := pad32(got)
-	wantPadded := pad32(value)
+	wantPadded := pad32(wantHash)
 	for i := range gotPadded {
 		if gotPadded[i] != wantPadded[i] {
-			return fmt.Errorf("membership proof failed: value mismatch (got %x, want %x)", got, value)
+			return fmt.Errorf("membership proof failed: value mismatch (got %x, want %x)", got, wantHash)
 		}
 	}
 	return nil
