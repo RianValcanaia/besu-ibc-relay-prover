@@ -1,12 +1,14 @@
 package module
 
-// NOTA (patch local, ver YUI_Relayer/.claude/nextsteps.md T13): este arquivo
-// não existia na v0.2.8 original (que só tinha o Prover off-chain). É a
-// metade on-chain que faltava - persistência de ClientState/ConsensusState
-// no clientStore, portada do mesmo padrão usado por
-// modules/light-clients/07-tendermint/store.go do próprio ibc-go v8 (mesma
-// dependência já vendorizada), só sem a parte de iteração/pruning (não
-// necessária, já que misbehaviour ficou fora do escopo do MVP - T13.5).
+/*
+Persistência do light client no clientStore do ibc-go: ClientState,
+ConsensusState e os metadados de cada altura (processedTime e
+processedHeight), usados para checar o delay period da connection.
+
+Segue o padrão de modules/light-clients/07-tendermint/store.go do ibc-go v8,
+sem a iteração/pruning de consensus states antigos, que só seria necessária
+com tratamento de misbehaviour (não implementado).
+*/
 
 import (
 	storetypes "cosmossdk.io/store/types"

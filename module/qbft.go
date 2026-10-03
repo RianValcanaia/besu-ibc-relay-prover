@@ -1,21 +1,21 @@
 package module
 
-// NOTA (patch local, ver YUI_Relayer/.claude/nextsteps.md T13): a v0.2.8
-// original só implementava a metade off-chain (Prover, em prover.go) - os
-// métodos de exported.ClientState/exported.ConsensusState aqui eram todos
-// panic("not implemented"). Este arquivo (+ qbft_store.go, qbft_proof.go,
-// qbft_update.go, qbft_errors.go, todos adicionados neste patch local)
-// implementa a metade on-chain de verdade, reaproveitando o mesmo tipo
-// hb-qbft e a mesma lógica de verificação (RLP/ecrecover/threshold) que o
-// Prover já usava off-chain, em vez de desenhar um client novo do zero -
-// ver YUI_Relayer/.claude/claude.md, "antes de implementar, procure se já
-// não existe pronto".
-//
-// Fora do MVP (documentado, mesma decisão já registrada em besu.md §5.6.1):
-// misbehaviour/equivocation (CheckForMisbehaviour sempre retorna false),
-// client recovery (CheckSubstituteAndUpdateState) e chain upgrades
-// (VerifyUpgradeAndUpdateState) - nenhum dos três é exercitado pelo fluxo
-// de handshake + transferência ICS-20 que é o objetivo desta fase (T15-T17).
+/*
+ClientState e ConsensusState do light client hb-qbft: a parte que roda dentro
+da chain que verifica o Besu (no projeto, o simd).
+
+A versão original (v0.2.8) só tinha a parte off-chain (o Prover, em
+prover.go) e todos os métodos de exported.ClientState davam panic. Este
+arquivo, junto com qbft_store.go, qbft_proof.go, qbft_update.go e
+qbft_errors.go, implementa a parte on-chain reaproveitando o mesmo tipo
+hb-qbft e a mesma verificação (RLP, ecrecover, quorum de 2/3) que o Prover
+já usava.
+
+Não implementado (não é usado no handshake nem na transferência ICS-20):
+  - misbehaviour/equivocation: CheckForMisbehaviour sempre retorna false;
+  - client recovery: CheckSubstituteAndUpdateState;
+  - upgrade de chain: VerifyUpgradeAndUpdateState.
+*/
 
 import (
 	"fmt"
@@ -53,8 +53,8 @@ func (cs *ClientState) Validate() error {
 
 // Status considera o client Active enquanto o ConsensusState mais recente
 // não tiver expirado (trusting period == 0 desativa a checagem, mesma
-// convenção já documentada no proto). Não há noção de Frozen (misbehaviour
-// fora do MVP).
+// convenção já documentada no proto). Não há noção de Frozen, porque
+// misbehaviour não é tratado.
 func (cs *ClientState) Status(ctx sdk.Context, clientStore storetypes.KVStore, cdc codec.BinaryCodec) exported.Status {
 	consState, found := getConsensusState(clientStore, cdc, cs.LatestHeight)
 	if !found {
@@ -69,8 +69,7 @@ func (cs *ClientState) Status(ctx sdk.Context, clientStore storetypes.KVStore, c
 	return exported.Active
 }
 
-// ExportMetadata: sem metadata adicional pra exportar no MVP (genesis
-// export/import não faz parte do fluxo T15-T17).
+/* ExportMetadata: não há metadata extra deste client para exportar no genesis. */
 func (cs *ClientState) ExportMetadata(clientStore storetypes.KVStore) []exported.GenesisMetadata {
 	return nil
 }
@@ -127,18 +126,12 @@ func (cs *ClientState) VerifyMembership(ctx sdk.Context, clientStore storetypes.
 	if !found_ {
 		return fmt.Errorf("membership proof failed: key not found in storage trie")
 	}
-	// Achado real (T22): todo commitment do IBCHandler.sol (client state,
-	// consensus state, connection, channel, packet - ver
-	// IBCClient.sol/IBCConnection.sol/IBCChannel*.sol, sempre
-	// `commitments[key] = keccak256(value)`) guarda o HASH do valor, nunca
-	// o valor cru - `value` aqui é o ConnectionEnd/ChannelEnd/etc completo
-	// (várias dezenas de bytes), não os 32 bytes que a trie realmente
-	// armazena. Comparar `value` cru (mesmo com pad32) contra o que a trie
-	// devolve sempre falhava pra qualquer commitment que não já fosse um
-	// hash de 32 bytes (ex.: ConnOpenAck rejeitando a prova de
-	// ConnectionEnd de um `TendermintClient.sol` real, T20/T21) - pego
-	// rodando o handshake de verdade pela primeira vez com verificação
-	// real nas duas pontas.
+	/*
+		Todo commitment do IBCHandler.sol (client, consensus, connection,
+		channel, pacote) é gravado como commitments[key] = keccak256(value):
+		a trie guarda o hash do valor, nunca o valor cru. Por isso a
+		comparação é com keccak256(value), e não com value.
+	*/
 	wantHash := crypto.Keccak256(value)
 	gotPadded := pad32(got)
 	wantPadded := pad32(wantHash)
@@ -193,8 +186,8 @@ func (cs *ClientState) VerifyClientMessage(ctx sdk.Context, cdc codec.BinaryCode
 	return cs.verifyClientMessage(ctx, cdc, clientStore, clientMsg)
 }
 
-// CheckForMisbehaviour: sempre false - equivocation/misbehaviour fica fora
-// do MVP (ver nota do topo do arquivo).
+// CheckForMisbehaviour: sempre false - equivocation/misbehaviour não é
+// tratado (ver comentário do topo do arquivo).
 func (cs *ClientState) CheckForMisbehaviour(ctx sdk.Context, cdc codec.BinaryCodec, clientStore storetypes.KVStore, clientMsg exported.ClientMessage) bool {
 	return false
 }
@@ -203,21 +196,21 @@ func (cs *ClientState) CheckForMisbehaviour(ctx sdk.Context, cdc codec.BinaryCod
 // false) - mantido como panic explícito só pra deixar isso claro se algum
 // dia deixar de ser verdade.
 func (cs *ClientState) UpdateStateOnMisbehaviour(ctx sdk.Context, cdc codec.BinaryCodec, clientStore storetypes.KVStore, clientMsg exported.ClientMessage) {
-	panic("qbft: misbehaviour handling not implemented (out of MVP scope, see nextsteps.md T13.5)")
+	panic("qbft: misbehaviour handling not implemented")
 }
 
 func (cs *ClientState) UpdateState(ctx sdk.Context, cdc codec.BinaryCodec, clientStore storetypes.KVStore, clientMsg exported.ClientMessage) []exported.Height {
 	return cs.updateState(ctx, cdc, clientStore, clientMsg)
 }
 
-// CheckSubstituteAndUpdateState: client recovery fora do MVP.
+// CheckSubstituteAndUpdateState: client recovery não implementado.
 func (cs *ClientState) CheckSubstituteAndUpdateState(ctx sdk.Context, cdc codec.BinaryCodec, subjectClientStore, substituteClientStore storetypes.KVStore, substituteClient exported.ClientState) error {
-	return fmt.Errorf("qbft: client recovery not implemented (out of MVP scope, see nextsteps.md T13)")
+	return fmt.Errorf("qbft: client recovery not implemented")
 }
 
-// VerifyUpgradeAndUpdateState: chain upgrades fora do MVP.
+// VerifyUpgradeAndUpdateState: upgrade de chain não implementado.
 func (cs *ClientState) VerifyUpgradeAndUpdateState(ctx sdk.Context, cdc codec.BinaryCodec, store storetypes.KVStore, newClient exported.ClientState, newConsState exported.ConsensusState, proofUpgradeClient, proofUpgradeConsState []byte) error {
-	return fmt.Errorf("qbft: chain upgrades not implemented (out of MVP scope, see nextsteps.md T13)")
+	return fmt.Errorf("qbft: chain upgrades not implemented")
 }
 
 var _ exported.ConsensusState = (*ConsensusState)(nil)

@@ -1,19 +1,19 @@
 package module
 
-// NOTA (patch local, ver YUI_Relayer/.claude/nextsteps.md T13.3): verificação
-// de membership/non-membership contra o storage_root do IBCHandler, via
-// prova MPT (eth_getProof). Não é criptografia nova - go-ethereum já resolve
-// (trie.VerifyProof); o trabalho aqui é só reverter o encoding que
-// ethereum-ibc-relay-chain/pkg/client/proof.go usa pra empacotar a prova
-// (rlp.EncodeToBytes de uma lista de nós já decodificados, ver proof.go
-// daquele repo) de volta pros bytes RLP originais de cada nó da trie, e
-// então montar o storage key do jeito que buildStateProof (prover.go, já
-// vendorizado) já calcula: keccak256(keccak256(path) || IBCCommitmentsSlot).
-//
-// Limitação documentada (MVP): o valor lido da trie é comparado com o
-// `value` esperado após padding à esquerda pra 32 bytes - assume-se que os
-// commitments do IBCHandler.sol são sempre bytes32 (é o caso de todos os
-// commitments ICS-24 gerados pelo ibc-go: hash sha256 de 32 bytes).
+/*
+Verificação de membership/non-membership contra o storage root do IBCHandler,
+usando a prova MPT (Merkle Patricia Trie) devolvida pelo eth_getProof.
+
+A criptografia já vem pronta do go-ethereum (trie.VerifyProof). O trabalho
+aqui é:
+  - desfazer o encoding que o ethereum-ibc-relay-chain (pkg/client/proof.go)
+    usa para empacotar a prova, recuperando os bytes RLP de cada nó;
+  - montar a chave de storage do mesmo jeito que buildStateProof (prover.go):
+    keccak256(keccak256(path) || IBCCommitmentsSlot).
+
+O valor lido da trie é comparado depois de padding à esquerda para 32 bytes,
+porque os commitments do IBCHandler.sol são sempre bytes32.
+*/
 
 import (
 	"fmt"

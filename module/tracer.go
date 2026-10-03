@@ -1,9 +1,10 @@
 package module
 
-// NOTA (patch local, T15, ver YUI_Relayer/.claude/nextsteps.md): faltava
-// nesse pacote - mesmo padrão de tracer.go em ethereum-ibc-relay-chain e
-// yui-relayer/chains/tendermint, necessário pra envolver o Prover retornado
-// por ProverConfig.Build com otelcore.NewProver (ver config.go).
+/*
+Tracer OpenTelemetry do pacote. ProverConfig.Build (config.go) usa ele para
+envolver o Prover com otelcore.NewProver, no mesmo padrão do
+ethereum-ibc-relay-chain e do chains/tendermint do yui-relayer.
+*/
 
 import "go.opentelemetry.io/otel"
 

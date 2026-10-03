@@ -42,11 +42,11 @@ func (h *Header) decodeEthHeader() (*types.Header, error) {
 	return &ethHeader, nil
 }
 
-// decodeAccountProof reverte o encoding usado por
-// ethereum-ibc-relay-chain/pkg/client/proof.go (encodeRLP) pros bytes RLP
-// originais de cada nó da trie. Reaproveita decodeMPTProofNodes
-// (qbft_proof.go, adicionado no patch local T13 pra uso da metade on-chain)
-// em vez de duplicar a lógica aqui.
+/*
+decodeAccountProof desfaz o encoding do ethereum-ibc-relay-chain
+(pkg/client/proof.go) e devolve os bytes RLP originais de cada nó da trie.
+Usa o mesmo decodeMPTProofNodes da verificação on-chain (qbft_proof.go).
+*/
 func (h *Header) decodeAccountProof() ([][]byte, error) {
 	return decodeMPTProofNodes(h.AccountStateProof)
 }

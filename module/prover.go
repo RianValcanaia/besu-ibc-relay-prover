@@ -94,16 +94,13 @@ func (pr *Prover) GetLatestFinalizedHeader(ctx context.Context) (latestFinalized
 	return pr.getHeader(ctx, nil)
 }
 
-// SetupHeadersForUpdate implements Prover.SetupHeadersForUpdate
-//
-// NOTA (patch local, ver YUI_Relayer/.claude/nextsteps.md T12): a v0.2.8
-// (última tag) foi escrita contra yui-relayer v0.5.11, cuja interface
-// core.Prover.SetupHeadersForUpdate retornava ([]core.Header, error). O
-// yui-relayer v0.5.20 (vendorizado neste projeto) mudou a assinatura pra
-// (<-chan *core.HeaderOrError, error) — quebra de API real, confirmada
-// tentando compilar contra os dois. Adaptado aqui pra usar o helper
-// core.MakeHeaderStream (já existe no próprio yui-relayer, feito pra
-// isso) em vez de reescrever a lógica de verificação.
+/*
+SetupHeadersForUpdate implementa core.Prover.SetupHeadersForUpdate.
+
+Desde o yui-relayer v0.5.20 a interface devolve um canal
+(<-chan *core.HeaderOrError) em vez de []core.Header; core.MakeHeaderStream
+converte os headers montados aqui para esse formato.
+*/
 func (pr *Prover) SetupHeadersForUpdate(ctx context.Context, counterparty core.FinalityAwareChain, latestFinalizedHeader core.Header) (<-chan *core.HeaderOrError, error) {
 	header, ok := latestFinalizedHeader.(*Header)
 	if !ok {

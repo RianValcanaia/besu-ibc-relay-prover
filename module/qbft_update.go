@@ -1,30 +1,22 @@
 package module
 
-// NOTA (patch local, ver YUI_Relayer/.claude/nextsteps.md T13.2): a metade
-// on-chain de "verificar um novo header QBFT" que faltava. O algoritmo
-// (decodificar extraData RLP, recuperar assinaturas via ecrecover, conferir
-// threshold >2/3) é portado 1:1 de Prover.validateAndGetOrderedSeals /
-// recoverSeals / ecrecover, já existentes em prover.go neste mesmo pacote -
-// reaproveitados diretamente aqui, não reescritos.
-//
-// Diferença deliberada em relação a prover.go: aqui fixamos sempre o
-// encoding QBFT (5 campos no extraData, seals zerados pro cálculo do hash
-// assinado) em vez de checar pr.config.IsIBFT2(), porque essa informação
-// (qual consenso) só existe na config do Prover (off-chain), não no
-// ClientState on-chain - e o besu_chain_0 deste projeto roda QBFT (ver
-// bcs/besu/scripts/init_chain.sh), não IBFT2. Suporte a IBFT2 on-chain fica
-// para quando/se for necessário (não é o caso hoje).
-//
-// Limitação documentada (MVP, mesmo espírito da decisão de deixar
-// misbehaviour.go fora do MVP, já registrada em besu.md §5.6.1): só
-// verificamos que ≥2/3 do validator set do PRÓPRIO header assinaram (igual
-// ao Prover off-chain). Não há checagem adicional de continuidade contra o
-// validator set do ConsensusState confiável anterior (ex.: sobreposição
-// mínima entre o set antigo e o novo) - o QBFT já garante isso a cada bloco
-// individualmente (mudanças de validador acontecem uma де cada vez, via
-// Vote, e cada bloco intermediário já precisa de 2/3 do set vigente), mas um
-// hardening mais forte (bridging explícito) pode ser adicionado depois se
-// necessário.
+/*
+Verificação on-chain de um novo header QBFT (MsgUpdateClient).
+
+O algoritmo é o mesmo do Prover off-chain (prover.go): decodifica o extraData
+(RLP), recupera quem assinou via ecrecover e exige mais de 2/3 dos
+validadores.
+
+Diferenças em relação ao prover.go:
+  - o encoding é sempre QBFT (5 campos no extraData, seals zerados no hash
+    assinado). O Prover escolhe QBFT ou IBFT2 pela config, mas essa
+    informação não existe no ClientState on-chain. As chains Besu do projeto
+    rodam QBFT (bcs/besu/scripts/init_chain.sh).
+  - só se confere que 2/3 do validator set do próprio header assinaram. Não
+    há checagem de continuidade contra o validator set do ConsensusState
+    anterior: o QBFT já exige 2/3 do set vigente a cada bloco e troca um
+    validador por vez.
+*/
 
 import (
 	"fmt"
@@ -40,17 +32,16 @@ import (
 	"github.com/ethereum/go-ethereum/crypto"
 )
 
-// verifyQBFTOrderedSeals confere que mais de 2/3 dos validadores listados no
-// header assinaram headerHash. IMPORTANTE (achado real, ver T13.6): as
-// assinaturas não vêm de extra.Seals (o extraData decodificado de
-// Header.BesuHeaderRlp) - esse campo já está zerado, porque BesuHeaderRlp é
-// exatamente o header "sem seals" que foi assinado (ver
-// Prover.validateAndGetOrderedSeals em prover.go). As assinaturas reais são
-// o campo Header.Seals, já ordenado/alinhado posicionalmente com
-// extra.Validators (com nil nas posições que não assinaram) pela mesma
-// função, do lado off-chain. Por isso a verificação aqui é posicional (mais
-// simples até que o recoverSeals baseado em mapa que o Prover usa
-// off-chain), não por endereço->assinatura.
+/*
+verifyQBFTOrderedSeals confere que mais de 2/3 dos validadores do header
+assinaram headerHash.
+
+As assinaturas não vêm de extra.Seals: esse campo está zerado, porque
+BesuHeaderRlp é justamente o header sem seals que foi assinado. Elas vêm de
+Header.Seals, que o Prover (validateAndGetOrderedSeals, prover.go) já entrega
+alinhado por posição com extra.Validators, com nil onde o validador não
+assinou. Por isso a verificação é posicional.
+*/
 func verifyQBFTOrderedSeals(headerHash []byte, validators []common.Address, seals [][]byte) error {
 	if len(seals) != len(validators) {
 		return fmt.Errorf("seals/validators length mismatch: %d != %d", len(seals), len(validators))

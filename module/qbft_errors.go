@@ -1,7 +1,10 @@
 package module
 
-// NOTA (patch local, T13): erros sentinela usados pela metade on-chain do
-// light client (qbft_store.go, qbft_proof.go, qbft_update.go, qbft.go).
+/*
+Erros sentinela da parte on-chain do light client hb-qbft (qbft_store.go,
+qbft_proof.go, qbft_update.go, qbft.go), usados na checagem do delay period
+da connection.
+*/
 
 import "errors"
 
